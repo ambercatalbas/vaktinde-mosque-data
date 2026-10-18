@@ -1,0 +1,65 @@
+name: Cami verisini üret ve yayınla
+
+on:
+  schedule:
+    - cron: "0 3 * * 1"   # her pazartesi 03:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write   # gh-pages dalına yazmak için
+  actions: write    # zamanlanmış işi etkin tutmak için (aşağıya bkz.)
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Birim testleri
+        run: python -m unittest discover -s tests -v
+
+      - name: Overpass'tan üret (güvenlik kapısıyla)
+        run: |
+          python generate_mosques.py --out site \
+            --previous-manifest "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/v1/manifest.json"
+
+      - name: İstatistikleri sakla
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stats
+          path: site/stats.json
+          if-no-files-found: ignore
+
+      - name: gh-pages dalına yetimsiz commit ile yaz
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp README.md LICENSE site/
+          cp pages/index.html site/index.html
+          touch site/.nojekyll
+          rm -f site/stats.json
+          cd site
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "veri: $(date -u +%Y-%m-%d) üretimi"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
+
+      # Herkese açık depolarda 60 gün etkinlik olmazsa zamanlanmış işler kapanır.
+      # Her çalıştırmada iş akışını yeniden etkinleştirmek bu sayacı sıfırlar.
+      - name: Zamanlanmış işi etkin tut
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${GITHUB_REPOSITORY}/actions/workflows/build.yml/enable" || true
