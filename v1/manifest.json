@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "generatedAt": "2026-10-19T08:31:12Z",
+  "count": 306748,
+  "countTR": 47746,
+  "attribution": "© OpenStreetMap contributors",
+  "license": "ODbL-1.0",
+  "source": "OpenStreetMap (Overpass API)",
+  "region": "world",
+  "tileGeohashPrecision": 4,
+  "tiles": 19120,
+  "repository": "https://github.com/ambercatalbas/vaktinde-mosque-data"
+}

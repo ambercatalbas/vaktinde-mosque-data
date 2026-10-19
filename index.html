@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaktinde cami verisi</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 16px; }
+  code { font-size: .9em; }
+</style>
+</head>
+<body>
+<h1>Vaktinde cami verisi</h1>
+<p>OpenStreetMap'teki camiler ve mescitler, geohash-4 karolarına bölünmüş statik JSON olarak.
+Her pazartesi yeniden üretilir.</p>
+<p>Mosques and prayer rooms from OpenStreetMap as static JSON tiles (geohash precision 4), rebuilt every Monday.</p>
+<ul>
+  <li>Manifest: <a href="v1/manifest.json"><code>v1/manifest.json</code></a></li>
+  <li>Karo / tile: <code>v1/t/{geohash4}.json</code> — örnek / example: <a href="v1/t/sxk9.json"><code>v1/t/sxk9.json</code></a> (İstanbul, Fatih). 404 = boş karo / empty tile.</li>
+  <li>Kaynak kod ve yöntem / source and method: <a href="https://github.com/ambercatalbas/vaktinde-mosque-data">github.com/ambercatalbas/vaktinde-mosque-data</a></li>
+</ul>
+<p>Veri © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>,
+<a href="https://opendatacommons.org/licenses/odbl/1-0/">ODbL 1.0</a> lisansıyla / licensed under ODbL 1.0.</p>
+</body>
+</html>
