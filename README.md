@@ -23,15 +23,15 @@ the ~39×20 km tile it is in, so the precise location never leaves the device.
 ```json
 {
   "version": 1,
-  "generatedAt": "2026-10-19T03:41:12Z",
-  "count": 300000,
-  "countTR": 48000,
+  "generatedAt": "2026-10-19T02:18:30Z",
+  "count": 306748,
+  "countTR": 47746,
   "attribution": "© OpenStreetMap contributors",
   "license": "ODbL-1.0",
   "source": "OpenStreetMap (Overpass API)",
   "region": "world",
   "tileGeohashPrecision": 4,
-  "tiles": 20000,
+  "tiles": 19120,
   "repository": "https://github.com/ambercatalbas/vaktinde-mosque-data"
 }
 ```
@@ -41,7 +41,7 @@ the ~39×20 km tile it is in, so the precise location never leaves the device.
 written; a 404 means "no records".
 
 ```json
-[{"i":"w24524316","a":41.01654,"o":28.94966,"n":"Fatih Camii","ne":"Fatih Mosque","k":"m","w":"yes"}]
+[{"i":"r1661399","a":41.01975,"o":28.94976,"n":"Fatih Camii","na":"جامع الفاتح","ne":"Fatih Mosque","k":"m","ad":"Hattat Nafiz Caddesi 6"}]
 ```
 
 | Alan / field | Anlam / meaning |
@@ -56,7 +56,10 @@ written; a 404 means "no records".
 | `ad` | `addr:street` + `addr:housenumber` |
 
 İstemci karo kimliğini standart geohash ile hesaplar (4 karakter ≈ 0,35° × 0,18°). Yakın
-çevre için bulunduğu karo ve gerekirse komşu karolar istenir.
+çevre için bulunduğu karo ve gerekirse komşu karolar istenir. Karolar küçüktür: ilk üretimde
+19.120 karo, toplam 22,8 MB, medyan 215 B, en büyüğü 244 KB (Pages gzip ile sunar; Fatih karosu
+`sxk9` 142 KB → 40 KB). Pages yanıtları `Access-Control-Allow-Origin: *`, `ETag` ve
+`Cache-Control: max-age=600` taşır.
 
 ## Yöntem / method
 
