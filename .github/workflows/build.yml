@@ -27,10 +27,28 @@ jobs:
       - name: Birim testleri
         run: python -m unittest discover -s tests -v
 
+      # Ham Overpass yanıtları hafta boyunca önbellekte kalır: aynı haftadaki yeniden
+      # çalıştırma (ör. sunucular doluyken düşen iş) yalnız eksik kutuları sorgular.
+      - name: Hafta anahtarı
+        id: week
+        run: echo "key=overpass-$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache
+          key: ${{ steps.week.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: ${{ steps.week.outputs.key }}-
+
       - name: Overpass'tan üret (güvenlik kapısıyla)
         run: |
-          python generate_mosques.py --out site \
+          python generate_mosques.py --out site --cache-dir .cache \
             --previous-manifest "https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}/v1/manifest.json"
+
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .cache
+          key: ${{ steps.week.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: İstatistikleri sakla
         if: always()

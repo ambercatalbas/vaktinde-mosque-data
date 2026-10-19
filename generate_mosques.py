@@ -40,10 +40,12 @@ SERVERS = [
     "https://overpass.kumi.systems/api/interpreter",
 ]
 PAUSE_BETWEEN_BOXES = 5          # sn
-ATTEMPTS_PER_BOX = 6
+ATTEMPTS_PER_BOX = 8             # geri çekilme 30 sn → 5 dk, kutu başına ~25 dk
 QUERY_TIMEOUT = 300              # Overpass [timeout:]
 HTTP_TIMEOUT = QUERY_TIMEOUT + 90
-DEFAULT_QUERY_BUDGET = 100       # tüm çalıştırmada en çok bu kadar sorgu
+DEFAULT_QUERY_BUDGET = 100       # sunucuyu gerçekten çalıştıran sorgu üst sınırı
+MAX_ATTEMPTS_TOTAL = 400         # anında geri çevrilenler dahil tüm istekler
+FAST_REJECT_SECONDS = 10         # bundan kısa süren hata = kuyruk dolu, sunucu iş yapmadı
 
 MIN_WORLD = 250_000
 MIN_TR = 45_000
@@ -163,10 +165,17 @@ class QueryBudgetExceeded(RuntimeError):
     pass
 
 
+class BoxFailed(RuntimeError):
+    def __init__(self, message, slow):
+        super().__init__(message)
+        self.slow = slow  # en az bir deneme sunucuda gerçekten çalıştı (zaman aşımı vb.)
+
+
 class Overpass:
     def __init__(self, budget, cache_dir=None):
         self.budget = budget
-        self.used = 0
+        self.used = 0        # sunucuyu çalıştıran sorgular (başarılı + yavaş hata)
+        self.attempts = 0    # tüm istekler
         self.cache_dir = cache_dir
         self.server_index = 0
         self.log = []
@@ -186,11 +195,13 @@ class Overpass:
                 return json.load(fh)["elements"]
         query = build_query(box)
         last_error = None
+        slow = False
         for attempt in range(ATTEMPTS_PER_BOX):
-            if self.used >= self.budget:
-                raise QueryBudgetExceeded(f"sorgu bütçesi ({self.budget}) doldu")
+            if self.used >= self.budget or self.attempts >= MAX_ATTEMPTS_TOTAL:
+                raise QueryBudgetExceeded(
+                    f"sorgu bütçesi doldu ({self.used}/{self.budget} sorgu, {self.attempts} istek)")
             server = SERVERS[self.server_index % len(SERVERS)]
-            self.used += 1
+            self.attempts += 1
             started = time.monotonic()
             try:
                 data = self._post(server, query)
@@ -199,6 +210,7 @@ class Overpass:
                     raise RuntimeError(f"Overpass uyarısı: {remark.strip()[:200]}")
                 elements = data.get("elements", [])
                 took = time.monotonic() - started
+                self.used += 1
                 self.log.append({"box": box, "server": server, "ok": True,
                                  "seconds": round(took, 1), "elements": len(elements)})
                 if path:
@@ -209,6 +221,9 @@ class Overpass:
             except Exception as exc:  # ağ, HTTP 429/5xx, JSON, Overpass zaman aşımı
                 took = time.monotonic() - started
                 last_error = exc
+                if took >= FAST_REJECT_SECONDS:
+                    self.used += 1
+                    slow = True
                 self.log.append({"box": box, "server": server, "ok": False,
                                  "seconds": round(took, 1), "error": str(exc)[:200]})
                 print(f"    ! {server.split('/')[2]}: {exc} ({took:.0f} sn)", flush=True)
@@ -217,7 +232,7 @@ class Overpass:
                 if isinstance(exc, urllib.error.HTTPError) and exc.code == 429:
                     wait = max(wait, 120)
                 time.sleep(wait)
-        raise RuntimeError(f"kutu {box} {ATTEMPTS_PER_BOX} denemede alınamadı: {last_error}")
+        raise BoxFailed(f"kutu {box} {ATTEMPTS_PER_BOX} denemede alınamadı: {last_error}", slow)
 
     @staticmethod
     def _post(server, query):
@@ -451,11 +466,10 @@ def run(args):
         print(f"[{done + 1}/{done + 1 + len(pending)}] kutu {box}", flush=True)
         try:
             elements = client.fetch(box)
-        except QueryBudgetExceeded:
-            raise
-        except RuntimeError as exc:
-            # Kalıcı hata: büyük kutuyu bir kez dörde böl (yoğunluk/zaman aşımı ihtimali).
-            if (box[2] - box[0]) > 8 and client.used < client.budget - 4:
+        except BoxFailed as exc:
+            # Sunucu sorguyu çalıştırıp yetiremediyse (zaman aşımı/bellek) büyük kutuyu bir kez
+            # dörde böl. Yalnız "kuyruk dolu" ret aldıysak bölmek yükü artırır; vazgeç.
+            if exc.slow and (box[2] - box[0]) > 8 and client.used < client.budget - 4:
                 print(f"    → bölünüyor: {exc}", flush=True)
                 pending = _split(box) + pending
                 continue
@@ -529,7 +543,8 @@ def run(args):
         "tiles": len(tiles), "totalBytes": sum(sizes.values()),
         "biggestTiles": [{"tile": gh, "bytes": b, "records": len(tiles[gh])} for gh, b in biggest],
         "medianTileBytes": sorted(sizes.values())[len(sizes) // 2] if sizes else 0,
-        "queries": client.used, "failedQueries": sum(1 for q in client.log if not q["ok"]),
+        "queries": client.used, "requests": client.attempts,
+        "failedRequests": sum(1 for q in client.log if not q["ok"]),
         "durationSeconds": round(duration),
         "previousCount": previous.get("count") if previous else None,
         "gateErrors": errors,
@@ -555,7 +570,7 @@ def report(stats):
         f"medyan {stats['medianTileBytes']:,} B",
         "- En büyük karolar: " + ", ".join(
             f"`{t['tile']}` {t['bytes'] / 1e3:.0f} KB/{t['records']}" for t in stats["biggestTiles"]),
-        f"- Sorgu: {stats['queries']} (başarısız {stats['failedQueries']}), "
+        f"- Sorgu: {stats['queries']} (istek {stats['requests']}, başarısız {stats['failedRequests']}), "
         f"süre {stats['durationSeconds'] // 60} dk {stats['durationSeconds'] % 60} sn",
         f"- Önceki sayı: {stats['previousCount']}",
     ]
